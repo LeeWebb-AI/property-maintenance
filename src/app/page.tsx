@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, Suspense } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,44 +20,15 @@ const statusConfig: Record<MaintenanceStatus, { color: string; icon: typeof Chec
   '待处理': { color: 'bg-gray-100 text-gray-700 border-gray-200', icon: AlertCircle, label: '待处理' },
 }
 
-function DialogComponent({ 
-  open, 
-  onOpenChange, 
-  children 
-}: { 
-  open: boolean; 
-  onOpenChange: (open: boolean) => void; 
-  children: React.ReactNode 
-}) {
-  if (!open) return null
-  
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div 
-        className="absolute inset-0 bg-black/50" 
-        onClick={() => onOpenChange(false)}
-      />
-      <div className="relative bg-white rounded-lg shadow-lg w-full max-w-md mx-4 p-6">
-        {children}
-      </div>
-    </div>
-  )
-}
-
 export default function Home() {
   const [records, setRecords] = useState<MaintenanceRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<MaintenanceRecord | null>(null)
   const [uploading, setUploading] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
-  const [statusOptions, setStatusOptions] = useState<{value: string; label: string}[]>([
-    { value: '待处理', label: '待处理' },
-    { value: '进行中', label: '进行中' },
-    { value: '已完成', label: '已完成' },
-  ])
 
   useEffect(() => {
     setIsMounted(true)
@@ -73,7 +44,7 @@ export default function Home() {
 
   async function fetchRecords() {
     setLoading(true)
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('maintenance_records')
       .select('*')
       .order('date', { ascending: false })
@@ -83,7 +54,8 @@ export default function Home() {
     setLoading(false)
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
     setUploading(true)
     let imageUrl = formData.imageUrl
 
@@ -126,7 +98,6 @@ export default function Home() {
 
     setUploading(false)
     resetForm()
-    setIsDialogOpen(false)
     fetchRecords()
   }
 
@@ -147,7 +118,7 @@ export default function Home() {
       image: null,
       imageUrl: record.image_url || '',
     })
-    setIsDialogOpen(true)
+    setShowForm(true)
   }
 
   function resetForm() {
@@ -160,6 +131,7 @@ export default function Home() {
       image: null,
       imageUrl: '',
     })
+    setShowForm(false)
   }
 
   const [formData, setFormData] = useState({
@@ -193,6 +165,125 @@ export default function Home() {
     )
   }
 
+  if (showForm) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="max-w-2xl mx-auto px-4 py-8">
+          <Card className="border-0 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold">
+                  {editingRecord ? '编辑工单' : '新增维修工单'}
+                </h2>
+                <button 
+                  onClick={resetForm}
+                  className="p-2 hover:bg-slate-100 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <form onSubmit={handleSubmit} className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="date">日期</Label>
+                  <Input
+                    id="date"
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="item">维修事项</Label>
+                  <Textarea
+                    id="item"
+                    placeholder="请输入维修事项"
+                    value={formData.item}
+                    onChange={(e) => setFormData({ ...formData, item: e.target.value })}
+                    rows={3}
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="technician">维修人员</Label>
+                  <Input
+                    id="technician"
+                    placeholder="请输入维修人员姓名"
+                    value={formData.technician}
+                    onChange={(e) => setFormData({ ...formData, technician: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="status">完成情况</Label>
+                  <select
+                    id="status"
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as MaintenanceStatus })}
+                    className="px-3 py-2 border rounded-md"
+                  >
+                    <option value="待处理">待处理</option>
+                    <option value="进行中">进行中</option>
+                    <option value="已完成">已完成</option>
+                  </select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>附图</Label>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setFormData({ ...formData, image: e.target.files?.[0] || null })}
+                  />
+                  {(formData.imageUrl || formData.image) && (
+                    <div className="relative mt-2 inline-block">
+                      {formData.image ? (
+                        <img 
+                          src={URL.createObjectURL(formData.image)} 
+                          alt="Preview" 
+                          className="w-32 h-24 object-cover rounded-lg border"
+                        />
+                      ) : formData.imageUrl ? (
+                        <img 
+                          src={formData.imageUrl} 
+                          alt="Current" 
+                          className="w-32 h-24 object-cover rounded-lg border"
+                        />
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, image: null, imageUrl: '' })}
+                        className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <Button 
+                    type="submit"
+                    disabled={uploading || !formData.item || !formData.technician}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  >
+                    {uploading ? '提交中...' : editingRecord ? '保存修改' : '提交工单'}
+                  </Button>
+                  <Button 
+                    type="button"
+                    variant="outline"
+                    onClick={resetForm}
+                    className="flex-1"
+                  >
+                    取消
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -210,7 +301,7 @@ export default function Home() {
             className="bg-blue-600 hover:bg-blue-700 px-6 py-2"
             onClick={() => {
               resetForm()
-              setIsDialogOpen(true)
+              setShowForm(true)
             }}
           >
             <Plus className="w-5 h-5 mr-2" />
@@ -382,101 +473,6 @@ export default function Home() {
           </CardContent>
         </Card>
       </div>
-
-      <DialogComponent open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">
-            {editingRecord ? '编辑工单' : '新增维修工单'}
-          </h2>
-          <button 
-            onClick={() => setIsDialogOpen(false)}
-            className="p-1 hover:bg-slate-100 rounded"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="date">日期</Label>
-            <Input
-              id="date"
-              type="date"
-              value={formData.date}
-              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="item">维修事项</Label>
-            <Textarea
-              id="item"
-              placeholder="请输入维修事项"
-              value={formData.item}
-              onChange={(e) => setFormData({ ...formData, item: e.target.value })}
-              rows={2}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="technician">维修人员</Label>
-            <Input
-              id="technician"
-              placeholder="请输入维修人员姓名"
-              value={formData.technician}
-              onChange={(e) => setFormData({ ...formData, technician: e.target.value })}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="status">完成情况</Label>
-            <select
-              id="status"
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value as MaintenanceStatus })}
-              className="px-3 py-2 border rounded-md"
-            >
-              <option value="待处理">待处理</option>
-              <option value="进行中">进行中</option>
-              <option value="已完成">已完成</option>
-            </select>
-          </div>
-          <div className="grid gap-2">
-            <Label>附图</Label>
-            <Input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setFormData({ ...formData, image: e.target.files?.[0] || null })}
-            />
-            {(formData.imageUrl || formData.image) && (
-              <div className="relative mt-2 inline-block">
-                {formData.image ? (
-                  <img 
-                    src={URL.createObjectURL(formData.image)} 
-                    alt="Preview" 
-                    className="w-24 h-24 object-cover rounded-lg border"
-                  />
-                ) : formData.imageUrl ? (
-                  <img 
-                    src={formData.imageUrl} 
-                    alt="Current" 
-                    className="w-24 h-24 object-cover rounded-lg border"
-                  />
-                ) : null}
-                <button
-                  onClick={() => setFormData({ ...formData, image: null, imageUrl: '' })}
-                  className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            )}
-          </div>
-          <Button 
-            onClick={handleSubmit} 
-            disabled={uploading || !formData.item || !formData.technician}
-            className="w-full bg-blue-600 hover:bg-blue-700"
-          >
-            {uploading ? '提交中...' : editingRecord ? '保存修改' : '提交工单'}
-          </Button>
-        </div>
-      </DialogComponent>
     </div>
   )
 }
