@@ -190,16 +190,20 @@ export default function Home() {
               <p className="text-slate-500">工程部维修记录与管理</p>
             </div>
           </div>
+          <Button 
+            className="bg-blue-600 hover:bg-blue-700 px-6 py-2"
+            onClick={() => {
+              resetForm()
+              setIsDialogOpen(true)
+            }}
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            新增工单
+          </Button>
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             setIsDialogOpen(open)
             if (!open) resetForm()
           }}>
-            <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700 px-6 py-2">
-                <Plus className="w-5 h-5 mr-2" />
-                新增工单
-              </Button>
-            </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>{editingRecord ? '编辑工单' : '新增维修工单'}</DialogTitle>
