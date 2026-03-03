@@ -24,15 +24,19 @@ export default function Home() {
     setIsMounted(true)
   }, [])
 
-  const supabase = useMemo(() => createClient(), [])
+  const supabase = useMemo(() => {
+    if (typeof window === 'undefined') return null
+    return createClient()
+  }, [])
 
   useEffect(() => {
-    if (isMounted) {
+    if (isMounted && supabase) {
       fetchRecords()
     }
-  }, [isMounted])
+  }, [isMounted, supabase])
 
   async function fetchRecords() {
+    if (!supabase) return
     setLoading(true)
     const { data } = await supabase
       .from('maintenance_records')
