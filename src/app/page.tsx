@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { MaintenanceRecord, MaintenanceStatus } from '@/types/database'
 
@@ -8,6 +8,14 @@ const statusConfig: Record<MaintenanceStatus, { color: string; label: string }> 
   '已完成': { color: 'bg-green-100 text-green-700', label: '已完成' },
   '进行中': { color: 'bg-amber-100 text-amber-700', label: '进行中' },
   '待处理': { color: 'bg-gray-100 text-gray-700', label: '待处理' },
+}
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+    </div>
+  )
 }
 
 export default function Home() {
@@ -18,84 +26,108 @@ export default function Home() {
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<MaintenanceRecord | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [isMounted, setIsMounted] = useState(false)
-
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
+  const [formData, setFormData] = useState({
+    date: '',
+    item: '',
+    technician: '',
+    status: '待处理' as MaintenanceStatus,
+    image: null as File | null,
+    imageUrl: '',
+  })
 
   const supabase = useMemo(() => {
     if (typeof window === 'undefined') return null
     return createClient()
   }, [])
 
-  useEffect(() => {
-    if (isMounted && supabase) {
-      fetchRecords()
-    }
-  }, [isMounted, supabase])
-
-  async function fetchRecords() {
+  const fetchRecords = useCallback(async () => {
     if (!supabase) return
     setLoading(true)
-    const { data } = await supabase
-      .from('maintenance_records')
-      .select('*')
-      .order('date', { ascending: false })
-      .order('created_at', { ascending: false })
-    
-    if (data) setRecords(data)
-    setLoading(false)
-  }
+    try {
+      const { data } = await supabase
+        .from('maintenance_records')
+        .select('*')
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
+      
+      if (data) setRecords(data)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }, [supabase])
+
+  useEffect(() => {
+    if (supabase) {
+      fetchRecords()
+    }
+  }, [supabase, fetchRecords])
+
+  useEffect(() => {
+    if (formData.date === '') {
+      setFormData(prev => ({
+        ...prev,
+        date: new Date().toISOString().split('T')[0]
+      }))
+    }
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!supabase) return
     setUploading(true)
     let imageUrl = formData.imageUrl
 
-    if (formData.image) {
-      const fileName = `${Date.now()}-${formData.image.name}`
-      const { data: uploadData } = await supabase.storage
-        .from('maintenance-images')
-        .upload(fileName, formData.image)
-
-      if (uploadData) {
-        const { data: { publicUrl } } = supabase.storage
+    try {
+      if (formData.image) {
+        const fileName = `${Date.now()}-${formData.image.name}`
+        const { data: uploadData } = await supabase.storage
           .from('maintenance-images')
-          .getPublicUrl(fileName)
-        imageUrl = publicUrl
+          .upload(fileName, formData.image)
+
+        if (uploadData) {
+          const { data: { publicUrl } } = supabase.storage
+            .from('maintenance-images')
+            .getPublicUrl(fileName)
+          imageUrl = publicUrl
+        }
       }
-    }
 
-    if (editingRecord) {
-      await supabase
-        .from('maintenance_records')
-        .update({
-          date: formData.date,
-          item: formData.item,
-          technician: formData.technician,
-          status: formData.status,
-          image_url: imageUrl || null,
-        })
-        .eq('id', editingRecord.id)
-    } else {
-      await supabase
-        .from('maintenance_records')
-        .insert({
-          date: formData.date,
-          item: formData.item,
-          technician: formData.technician,
-          status: formData.status,
-          image_url: imageUrl || null,
-        })
-    }
+      if (editingRecord) {
+        await supabase
+          .from('maintenance_records')
+          .update({
+            date: formData.date,
+            item: formData.item,
+            technician: formData.technician,
+            status: formData.status,
+            image_url: imageUrl || null,
+          })
+          .eq('id', editingRecord.id)
+      } else {
+        await supabase
+          .from('maintenance_records')
+          .insert({
+            date: formData.date,
+            item: formData.item,
+            technician: formData.technician,
+            status: formData.status,
+            image_url: imageUrl || null,
+          })
+      }
 
-    setUploading(false)
-    resetForm()
-    fetchRecords()
+      resetForm()
+      fetchRecords()
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setUploading(false)
+    }
   }
 
   async function handleDelete(id: string) {
+    if (!supabase) return
     if (confirm('确定要删除这条记录吗？')) {
       await supabase.from('maintenance_records').delete().eq('id', id)
       fetchRecords()
@@ -118,7 +150,7 @@ export default function Home() {
   function resetForm() {
     setEditingRecord(null)
     setFormData({
-      date: typeof window !== 'undefined' ? new Date().toISOString().split('T')[0] : '',
+      date: new Date().toISOString().split('T')[0],
       item: '',
       technician: '',
       status: '待处理',
@@ -127,21 +159,6 @@ export default function Home() {
     })
     setShowForm(false)
   }
-
-  const [formData, setFormData] = useState({
-    date: '',
-    item: '',
-    technician: '',
-    status: '待处理' as MaintenanceStatus,
-    image: null as File | null,
-    imageUrl: '',
-  })
-
-  useEffect(() => {
-    if (isMounted) {
-      setFormData(prev => ({ ...prev, date: new Date().toISOString().split('T')[0] }))
-    }
-  }, [isMounted])
 
   const filteredRecords = records.filter(record => {
     const matchesSearch = record.item.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -157,12 +174,8 @@ export default function Home() {
     pending: records.filter(r => r.status === '待处理').length,
   }
 
-  if (!isMounted) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    )
+  if (!supabase) {
+    return <LoadingScreen />
   }
 
   if (showForm) {
@@ -422,7 +435,7 @@ export default function Home() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-3 mb-2">
                             <span className="text-sm font-medium text-slate-500">
-                              {new Date(record.date).toLocaleDateString('zh-CN')}
+                              {record.date}
                             </span>
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
                               {status.label}
