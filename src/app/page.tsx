@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -36,7 +36,6 @@ const statusConfig: Record<MaintenanceStatus, { color: string; icon: typeof Chec
 }
 
 export default function Home() {
-  const supabase = createClient()
   const [records, setRecords] = useState<MaintenanceRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -44,6 +43,13 @@ export default function Home() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingRecord, setEditingRecord] = useState<MaintenanceRecord | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  const supabase = useMemo(() => createClient(), [])
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -161,6 +167,14 @@ export default function Home() {
     completed: records.filter(r => r.status === '已完成').length,
     inProgress: records.filter(r => r.status === '进行中').length,
     pending: records.filter(r => r.status === '待处理').length,
+  }
+
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    )
   }
 
   return (
