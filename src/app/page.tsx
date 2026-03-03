@@ -15,6 +15,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
 } from '@/components/ui/dialog'
 import {
@@ -188,6 +189,7 @@ export default function Home() {
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>{editingRecord ? '编辑工单' : '新增维修工单'}</DialogTitle>
+                <DialogDescription>填写维修工单的相关信息</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
