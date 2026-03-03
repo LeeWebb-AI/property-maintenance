@@ -118,7 +118,7 @@ export default function Home() {
   function resetForm() {
     setEditingRecord(null)
     setFormData({
-      date: new Date().toISOString().split('T')[0],
+      date: typeof window !== 'undefined' ? new Date().toISOString().split('T')[0] : '',
       item: '',
       technician: '',
       status: '待处理',
@@ -129,13 +129,19 @@ export default function Home() {
   }
 
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: '',
     item: '',
     technician: '',
     status: '待处理' as MaintenanceStatus,
     image: null as File | null,
     imageUrl: '',
   })
+
+  useEffect(() => {
+    if (isMounted) {
+      setFormData(prev => ({ ...prev, date: new Date().toISOString().split('T')[0] }))
+    }
+  }, [isMounted])
 
   const filteredRecords = records.filter(record => {
     const matchesSearch = record.item.toLowerCase().includes(searchTerm.toLowerCase()) ||
